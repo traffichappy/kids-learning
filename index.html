@@ -106,6 +106,12 @@
   }
   @keyframes burst { 0% { transform: scale(.3); opacity: 0; } 30% { transform: scale(1.3); opacity: 1; } 100% { transform: scale(1); opacity: 0; } }
   .hint { color: #8d7b6c; font-size: .9rem; text-align: center; margin-top: 8px; }
+  .mult-line {
+    font-size: 1.5rem; padding: 8px 14px; border-radius: 12px; cursor: pointer;
+    display: flex; justify-content: center; gap: 6px; user-select: none;
+  }
+  .mult-line:nth-child(odd) { background: #fff8e1; }
+  .mult-line:hover { background: #ffe0b2; }
   select { font-family: inherit; font-size: 1rem; padding: 8px 12px; border-radius: 12px; border: 2px solid #ffb74d; background: #fff; }
   @media (max-width: 480px) {
     .sym-card .sym { font-size: 1.8rem; }
@@ -152,6 +158,8 @@
       <div class="menu-card c-blue" onclick="go('abc')"><div class="big">🔤</div><h2>英文字母</h2><p>Aa 到 Zz，聽發音學單字</p></div>
       <div class="menu-card c-green" onclick="go('words')"><div class="big">🗣️</div><h2>英文單字句子</h2><p>聽一聽、唸一唸小句子</p></div>
       <div class="menu-card c-purple" onclick="go('game')"><div class="big">🎮</div><h2>聽音小遊戲</h2><p>聽聲音找答案，答對拿星星！</p></div>
+      <div class="menu-card c-green" onclick="go('math')"><div class="big">➕➖</div><h2>簡單算數</h2><p>加加減減動動腦，答對拿星星</p></div>
+      <div class="menu-card c-blue" onclick="go('mult')"><div class="big">✖️</div><h2>九九乘法</h2><p>跟著唸、考考你</p></div>
       <div class="menu-card c-pink" onclick="go('trace')"><div class="big">✍️</div><h2>描字練習</h2><p>用手指或滑鼠描一描</p></div>
       <div class="menu-card c-orange" onclick="go('record')"><div class="big">🎙️</div><h2>跟讀錄音</h2><p>聽示範、錄自己的聲音比一比</p></div>
     </div>
@@ -215,6 +223,46 @@
       <div class="quiz-options" id="gameOpts"></div>
       <div class="feedback" id="gameFb"></div>
       <p class="progress" id="gameProg"></p>
+    </div>
+  </section>
+
+  <!-- ═══ 簡單算數 ═══ -->
+  <section id="math" class="screen">
+    <div class="backbar"><button class="gray" onclick="go('home')">🏠 回首頁</button><b>簡單算數 ➕➖</b></div>
+    <div class="tabbar">
+      <button id="mTab0" class="on" onclick="setMathMode(0)">加法</button>
+      <button id="mTab1" onclick="setMathMode(1)">減法</button>
+      <button id="mTab2" onclick="setMathMode(2)">混合</button>
+      <button id="mRange0" class="on" onclick="setMathRange(0)" style="margin-left:auto;">10 以內</button>
+      <button id="mRange1" onclick="setMathRange(1)">20 以內</button>
+    </div>
+    <div class="panel">
+      <div class="word-display" id="mathQ" style="font-size:3.2rem;letter-spacing:4px;"></div>
+      <div class="center"><button class="secondary" onclick="speakMathQ()">🔊 唸題目</button></div>
+      <div class="quiz-options" id="mathOpts" style="margin-top:14px;"></div>
+      <div class="feedback" id="mathFb"></div>
+      <p class="progress" id="mathProg"></p>
+    </div>
+  </section>
+
+  <!-- ═══ 九九乘法 ═══ -->
+  <section id="mult" class="screen">
+    <div class="backbar"><button class="gray" onclick="go('home')">🏠 回首頁</button><b>九九乘法表 ✖️</b></div>
+    <div class="tabbar" id="multTabs"></div>
+    <div class="panel" id="multLearn">
+      <div class="row" style="margin-top:0;">
+        <button class="secondary" onclick="multReadAll()">🔊 整段唸一遍</button>
+        <button class="green" onclick="multQuizStart()">🎯 考考我！</button>
+      </div>
+      <div id="multLines" style="margin-top:12px;"></div>
+    </div>
+    <div class="panel" id="multQuiz" style="display:none;">
+      <div class="word-display" id="multQ" style="font-size:3.2rem;letter-spacing:4px;"></div>
+      <div class="center"><button class="secondary" onclick="speakMultQ()">🔊 唸題目</button></div>
+      <div class="quiz-options" id="multOpts" style="margin-top:14px;"></div>
+      <div class="feedback" id="multFb"></div>
+      <p class="progress" id="multProg"></p>
+      <div class="center" style="margin-top:10px;"><button class="gray" onclick="multQuizStop()">↩️ 回乘法表</button></div>
     </div>
   </section>
 
@@ -442,6 +490,8 @@ function go(id){
   recStopAll();
   if (id === "game") startGame(gameMode);
   if (id === "trace") drawTrace();
+  if (id === "math") newMathQ();
+  if (id === "mult") { multReading = false; renderMultTabs(); renderMultLines(); }
 }
 
 /* ═══════════ 注音卡 ═══════════ */
@@ -587,6 +637,174 @@ function pickOption(item, btn){
     btn.style.background = "#ffcdd2";
     fb.textContent = "再聽一次，試試看！💪";
     playQuestion();
+  }
+}
+
+/* ═══════════ 簡單算數 ═══════════ */
+const ZHNUM = ["零","一","二","三","四","五","六","七","八","九","十"];
+function numToZh(n){
+  if (n <= 10) return ZHNUM[n];
+  if (n < 20) return "十" + ZHNUM[n - 10];
+  const t = Math.floor(n / 10), o = n % 10;
+  return ZHNUM[t] + "十" + (o ? ZHNUM[o] : "");
+}
+let mathMode = 0, mathRange = 0, mathQ = null, mathScore = 0, mathLock = false;
+function setMathMode(m){
+  mathMode = m;
+  for (let i = 0; i < 3; i++) document.getElementById("mTab" + i).classList.toggle("on", i === m);
+  newMathQ();
+}
+function setMathRange(r){
+  mathRange = r;
+  for (let i = 0; i < 2; i++) document.getElementById("mRange" + i).classList.toggle("on", i === r);
+  newMathQ();
+}
+function rnd(n){ return Math.floor(Math.random() * n); }
+function newMathQ(){
+  mathLock = false;
+  const max = mathRange === 0 ? 10 : 20;
+  const isAdd = mathMode === 0 || (mathMode === 2 && Math.random() < 0.5);
+  let a, b, ans;
+  if (isAdd) {
+    ans = 2 + rnd(max - 1);            // 和 2..max
+    a = 1 + rnd(ans - 1); b = ans - a; // 保證正數
+    mathQ = { a: a, b: b, op: "+", ans: ans };
+  } else {
+    a = 2 + rnd(max - 1);              // 被減數 2..max
+    b = 1 + rnd(a - 1);                // 減數 < a，差 >= 1
+    mathQ = { a: a, b: b, op: "−", ans: a - b };
+  }
+  document.getElementById("mathQ").textContent = mathQ.a + " " + mathQ.op + " " + mathQ.b + " = ？";
+  document.getElementById("mathFb").textContent = "";
+  const opts = new Set([mathQ.ans]);
+  while (opts.size < 4) {
+    let d = mathQ.ans + (rnd(7) - 3);
+    if (d >= 0 && d !== mathQ.ans) opts.add(d);
+  }
+  const box = document.getElementById("mathOpts");
+  box.innerHTML = "";
+  shuffle(Array.from(opts)).forEach(v => {
+    const btn = document.createElement("button");
+    btn.className = "opt";
+    btn.textContent = v;
+    btn.onclick = () => pickMath(v, btn);
+    box.appendChild(btn);
+  });
+  document.getElementById("mathProg").textContent = "答對 " + mathScore + " 題";
+}
+function speakMathQ(){
+  if (!mathQ) return;
+  speakZh(numToZh(mathQ.a) + (mathQ.op === "+" ? "加" : "減") + numToZh(mathQ.b) + "，等於多少？");
+}
+function pickMath(v, btn){
+  if (mathLock) return;
+  const fb = document.getElementById("mathFb");
+  if (v === mathQ.ans) {
+    mathLock = true; mathScore++;
+    btn.style.background = "#c8e6c9";
+    fb.textContent = "答對了！好棒！⭐";
+    addStar(1); celebrate("⭐");
+    speakZh(numToZh(mathQ.a) + (mathQ.op === "+" ? "加" : "減") + numToZh(mathQ.b) + "等於" + numToZh(mathQ.ans) + "。答對了！");
+    setTimeout(newMathQ, 1500);
+  } else {
+    btn.style.background = "#ffcdd2";
+    fb.textContent = "再想想看！💪";
+    speakZh("再想想看！");
+  }
+}
+
+/* ═══════════ 九九乘法 ═══════════ */
+let multN = 2, multQObj = null, multScore = 0, multLock = false, multReading = false;
+function renderMultTabs(){
+  const bar = document.getElementById("multTabs");
+  bar.innerHTML = "";
+  for (let n = 1; n <= 9; n++) {
+    const b = document.createElement("button");
+    b.id = "multTab" + n;
+    b.textContent = n;
+    b.className = n === multN ? "on" : "";
+    b.onclick = () => { multN = n; multReading = false; renderMultTabs(); renderMultLines(); };
+    bar.appendChild(b);
+  }
+}
+function multSpeakText(n, i){ return numToZh(n) + "乘" + numToZh(i) + "，等於" + numToZh(n * i); }
+function renderMultLines(){
+  const box = document.getElementById("multLines");
+  box.innerHTML = "";
+  for (let i = 1; i <= 9; i++) {
+    const d = document.createElement("div");
+    d.className = "mult-line";
+    d.innerHTML = "<span>" + multN + " × " + i + " = <b style='color:#e65100'>" + (multN * i) + "</b></span><span>🔊</span>";
+    d.onclick = () => { multReading = false; speakZh(multSpeakText(multN, i)); };
+    box.appendChild(d);
+  }
+}
+function multReadAll(){
+  if (!window.speechSynthesis) return;
+  speechSynthesis.cancel();
+  multReading = true;
+  let i = 1;
+  function next(){
+    if (!multReading || i > 9) { multReading = false; return; }
+    const u = new SpeechSynthesisUtterance(multSpeakText(multN, i));
+    u.lang = "zh-TW"; u.rate = RATES[rateLevel]; u.pitch = 1.0;
+    const v = pickVoice("zh-TW");
+    if (v) u.voice = v;
+    u.onend = () => { i++; setTimeout(next, 350); };
+    speechSynthesis.speak(u);
+  }
+  next();
+}
+function multQuizStart(){
+  multReading = false;
+  document.getElementById("multLearn").style.display = "none";
+  document.getElementById("multQuiz").style.display = "block";
+  newMultQ();
+}
+function multQuizStop(){
+  if (window.speechSynthesis) speechSynthesis.cancel();
+  document.getElementById("multQuiz").style.display = "none";
+  document.getElementById("multLearn").style.display = "block";
+}
+function newMultQ(){
+  multLock = false;
+  const a = 2 + rnd(8), b = 1 + rnd(9);
+  multQObj = { a: a, b: b, ans: a * b };
+  document.getElementById("multQ").textContent = a + " × " + b + " = ？";
+  document.getElementById("multFb").textContent = "";
+  const opts = new Set([multQObj.ans]);
+  while (opts.size < 4) {
+    const wrong = Math.random() < 0.5 ? (2 + rnd(8)) * b : a * (1 + rnd(9));
+    if (wrong !== multQObj.ans) opts.add(wrong);
+  }
+  const box = document.getElementById("multOpts");
+  box.innerHTML = "";
+  shuffle(Array.from(opts)).forEach(v => {
+    const btn = document.createElement("button");
+    btn.className = "opt";
+    btn.textContent = v;
+    btn.onclick = () => pickMult(v, btn);
+    box.appendChild(btn);
+  });
+  document.getElementById("multProg").textContent = "答對 " + multScore + " 題";
+}
+function speakMultQ(){
+  if (multQObj) speakZh(numToZh(multQObj.a) + "乘" + numToZh(multQObj.b) + "，等於多少？");
+}
+function pickMult(v, btn){
+  if (multLock) return;
+  const fb = document.getElementById("multFb");
+  if (v === multQObj.ans) {
+    multLock = true; multScore++;
+    btn.style.background = "#c8e6c9";
+    fb.textContent = "答對了！好棒！⭐";
+    addStar(1); celebrate("⭐");
+    speakZh(multSpeakText(multQObj.a, multQObj.b) + "。答對了！");
+    setTimeout(newMultQ, 1500);
+  } else {
+    btn.style.background = "#ffcdd2";
+    fb.textContent = "再想想看！💪";
+    speakZh("再想想看！");
   }
 }
 
